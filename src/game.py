@@ -11,8 +11,11 @@ class Snake(GameBase):
         super().__init__()
         self.length = length
         self.parent_screen = parent_screen
-        self.x = [self.BLOCK_WIDTH] * self.length
-        self.y = [self.BLOCK_WIDTH] * self.length
+        # Initialize snake at a random position
+        start_x = random.randint(1, self.MAX_FOOD_INDEX - 1) * self.BLOCK_WIDTH
+        start_y = random.randint(1, self.MAX_FOOD_INDEX - 1) * self.BLOCK_WIDTH
+        self.x = [start_x] * self.length
+        self.y = [start_y] * self.length
         self.direction = "right"
 
     def draw(self):

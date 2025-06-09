@@ -84,7 +84,12 @@ def get_args():
         action="store_true",
         help="Run the game with a graphical user interface",
     )
-
+    parser.add_argument(
+        "--ckpt_path",
+        type=str,
+        default=None,
+        help="Path to load the model checkpoint from",
+    )
     args = parser.parse_args()
     args.scores_on_100_episodes = deque(maxlen=100)
 
@@ -275,7 +280,8 @@ if __name__ == "__main__":
     game = Game()
 
     agent = Agent(state_size=args.state_size, action_size=args.action_size, args=args)
-    agent.load()
+    if args.ckpt_path:
+        agent.load(args.ckpt_path)
     max_score = 0
 
     epsilon = args.epsilon_starting_value

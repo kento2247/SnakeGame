@@ -9,8 +9,11 @@ class Snake(GameBase):
     def __init__(self, length=5):
         super().__init__()
         self.length = length
-        self.x = [self.BLOCK_WIDTH] * self.length
-        self.y = [self.BLOCK_WIDTH] * self.length
+        # Initialize snake at a random position
+        start_x = random.randint(1, self.MAX_FOOD_INDEX - 1) * self.BLOCK_WIDTH
+        start_y = random.randint(1, self.MAX_FOOD_INDEX - 1) * self.BLOCK_WIDTH
+        self.x = [start_x] * self.length
+        self.y = [start_y] * self.length
         self.direction = "right"
 
     def increase(self):
@@ -35,7 +38,6 @@ class Snake(GameBase):
             self.direction = "down"
 
     def move(self):
-
         for i in range(self.length - 1, 0, -1):
             self.x[i] = self.x[i - 1]
             self.y[i] = self.y[i - 1]
