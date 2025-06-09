@@ -55,8 +55,8 @@ class Snake(GameBase):
 class Apple(GameBase):
     def __init__(self):
         super().__init__()
-        self.x = self.BLOCK_WIDTH * 4
-        self.y = self.BLOCK_WIDTH * 5
+        self.x = random.randint(0, self.MAX_FOOD_INDEX) * self.BLOCK_WIDTH
+        self.y = random.randint(0, self.MAX_FOOD_INDEX) * self.BLOCK_WIDTH
 
     def move(self, snake):
         while True:  # make sure new food is not getting created over snake body

@@ -65,8 +65,8 @@ class Apple(GameBase):
     def __init__(self, parent_screen):
         super().__init__()
         self.parent_screen = parent_screen
-        self.x = self.BLOCK_WIDTH * 4
-        self.y = self.BLOCK_WIDTH * 5
+        self.x = random.randint(0, self.MAX_FOOD_INDEX) * self.BLOCK_WIDTH
+        self.y = random.randint(0, self.MAX_FOOD_INDEX) * self.BLOCK_WIDTH
 
     def draw(self):
         pygame.draw.rect(
