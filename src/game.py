@@ -3,15 +3,14 @@ import random
 import numpy as np
 import pygame
 
-from base import Base
+from src.game_base import GameBase
 
 
-class Snake(Base):
+class Snake(GameBase):
     def __init__(self, parent_screen, length=5):
         super().__init__()
         self.length = length
         self.parent_screen = parent_screen
-        self.block = pygame.image.load("resources/block.jpg")
         self.x = [self.BLOCK_WIDTH] * self.length
         self.y = [self.BLOCK_WIDTH] * self.length
         self.direction = "right"
@@ -19,7 +18,11 @@ class Snake(Base):
     def draw(self):
         self.parent_screen.fill((0, 0, 0))
         for i in range(self.length):
-            self.parent_screen.blit(self.block, (self.x[i], self.y[i]))
+            pygame.draw.rect(
+                self.parent_screen,
+                (0, 0, 255),
+                (self.x[i], self.y[i], self.BLOCK_WIDTH, self.BLOCK_WIDTH),
+            )
 
     def increase(self):
         self.length += 1
@@ -27,45 +30,47 @@ class Snake(Base):
         self.y.append(-1)
 
     def move_left(self):
-        self.direction = 'left'
+        self.direction = "left"
 
     def move_right(self):
-        self.direction = 'right'
+        self.direction = "right"
 
     def move_up(self):
-        self.direction = 'up'
+        self.direction = "up"
 
     def move_down(self):
-        self.direction = 'down'
+        self.direction = "down"
 
     def move(self):
-
         for i in range(self.length - 1, 0, -1):
             self.x[i] = self.x[i - 1]
             self.y[i] = self.y[i - 1]
 
-        if self.direction == 'right':
+        if self.direction == "right":
             self.x[0] += self.BLOCK_WIDTH
-        if self.direction == 'left':
+        if self.direction == "left":
             self.x[0] -= self.BLOCK_WIDTH
-        if self.direction == 'up':
+        if self.direction == "up":
             self.y[0] -= self.BLOCK_WIDTH
-        if self.direction == 'down':
+        if self.direction == "down":
             self.y[0] += self.BLOCK_WIDTH
 
         self.draw()
 
 
-class Apple(Base):
+class Apple(GameBase):
     def __init__(self, parent_screen):
         super().__init__()
         self.parent_screen = parent_screen
-        self.apple_img = pygame.image.load("resources/apple.jpg")
         self.x = self.BLOCK_WIDTH * 4
         self.y = self.BLOCK_WIDTH * 5
 
     def draw(self):
-        self.parent_screen.blit(self.apple_img, (self.x, self.y))
+        pygame.draw.rect(
+            self.parent_screen,
+            (255, 0, 0),
+            (self.x, self.y, self.BLOCK_WIDTH, self.BLOCK_WIDTH),
+        )
 
     def move(self, snake):
         while True:  # make sure new food is not getting created over snake body
@@ -82,7 +87,7 @@ class Apple(Base):
                 return
 
 
-class Game(Base):
+class Game(GameBase):
     def __init__(self):
         super().__init__()
         pygame.init()
@@ -103,18 +108,8 @@ class Game(Base):
         self.snake.move()
         self.apple.draw()
         self.display_score()
-        self.reward = -0.1
 
-        # if snake eats the apple
-        if self.snake.x[0] == self.apple.x and self.snake.y[0] == self.apple.y:
-            self.score += 1
-            self.snake.increase()
-            self.apple.move(self.snake)
-            self.reward = 10
-
-        if self.is_collision():
-            self.game_over = True
-            self.reward = -100
+        self.reward = self.reward_function()
 
     def is_collision(self):
         head_x = self.snake.x[0]
@@ -124,10 +119,12 @@ class Game(Base):
             if head_x == self.snake.x[i] and head_y == self.snake.y[i]:
                 return True
 
-        if head_x > (self.SCREEN_SIZE - self.BLOCK_WIDTH) \
-                or head_y > (self.SCREEN_SIZE - self.BLOCK_WIDTH) \
-                or head_x < 0 \
-                or head_y < 0:
+        if (
+            head_x > (self.SCREEN_SIZE - self.BLOCK_WIDTH)
+            or head_y > (self.SCREEN_SIZE - self.BLOCK_WIDTH)
+            or head_x < 0
+            or head_y < 0
+        ):
             return True
 
         return False
@@ -140,16 +137,18 @@ class Game(Base):
             if point_x == self.snake.x[i] and point_y == self.snake.y[i]:
                 return True
 
-        if point_x > (self.SCREEN_SIZE - self.BLOCK_WIDTH) \
-                or point_y > (self.SCREEN_SIZE - self.BLOCK_WIDTH) \
-                or point_x < 0 \
-                or point_y < 0:
+        if (
+            point_x > (self.SCREEN_SIZE - self.BLOCK_WIDTH)
+            or point_y > (self.SCREEN_SIZE - self.BLOCK_WIDTH)
+            or point_x < 0
+            or point_y < 0
+        ):
             return True
 
         return False
 
     def display_score(self):
-        font = pygame.font.SysFont('arial', 20)
+        font = pygame.font.SysFont("arial", 20)
         msg = "Score: " + str(self.score)
         scores = font.render(f"{msg}", True, (200, 200, 200))
         self.surface.blit(scores, (480, 10))

@@ -2,10 +2,10 @@ import random
 
 from sympy.physics.control.control_plots import np
 
-from base import Base
+from src.game_base import GameBase
 
 
-class Snake(Base):
+class Snake(GameBase):
     def __init__(self, length=5):
         super().__init__()
         self.length = length
@@ -19,20 +19,20 @@ class Snake(Base):
         self.y.append(-1)
 
     def move_left(self):
-        if self.direction != 'right':
-            self.direction = 'left'
+        if self.direction != "right":
+            self.direction = "left"
 
     def move_right(self):
-        if self.direction != 'left':
-            self.direction = 'right'
+        if self.direction != "left":
+            self.direction = "right"
 
     def move_up(self):
-        if self.direction != 'down':
-            self.direction = 'up'
+        if self.direction != "down":
+            self.direction = "up"
 
     def move_down(self):
-        if self.direction != 'up':
-            self.direction = 'down'
+        if self.direction != "up":
+            self.direction = "down"
 
     def move(self):
 
@@ -40,17 +40,17 @@ class Snake(Base):
             self.x[i] = self.x[i - 1]
             self.y[i] = self.y[i - 1]
 
-        if self.direction == 'right':
+        if self.direction == "right":
             self.x[0] += self.BLOCK_WIDTH
-        if self.direction == 'left':
+        if self.direction == "left":
             self.x[0] -= self.BLOCK_WIDTH
-        if self.direction == 'up':
+        if self.direction == "up":
             self.y[0] -= self.BLOCK_WIDTH
-        if self.direction == 'down':
+        if self.direction == "down":
             self.y[0] += self.BLOCK_WIDTH
 
 
-class Apple(Base):
+class Apple(GameBase):
     def __init__(self):
         super().__init__()
         self.x = self.BLOCK_WIDTH * 4
@@ -71,7 +71,7 @@ class Apple(Base):
                 return
 
 
-class Game(Base):
+class Game(GameBase):
     def __init__(self):
         super().__init__()
         self.snake = Snake(length=1)
@@ -82,18 +82,7 @@ class Game(Base):
 
     def play(self):
         self.snake.move()
-        self.reward = -0.1
-
-        # if snake eats the apple
-        if self.snake.x[0] == self.apple.x and self.snake.y[0] == self.apple.y:
-            self.score += 1
-            self.snake.increase()
-            self.apple.move(self.snake)
-            self.reward = 10
-
-        if self.is_collision():
-            self.game_over = True
-            self.reward = -100
+        self.reward = self.reward_function()
 
     def is_collision(self):
         head_x = self.snake.x[0]
@@ -103,10 +92,12 @@ class Game(Base):
             if head_x == self.snake.x[i] and head_y == self.snake.y[i]:
                 return True
 
-        if head_x > (self.SCREEN_SIZE - self.BLOCK_WIDTH) \
-                or head_y > (self.SCREEN_SIZE - self.BLOCK_WIDTH) \
-                or head_x < 0 \
-                or head_y < 0:
+        if (
+            head_x > (self.SCREEN_SIZE - self.BLOCK_WIDTH)
+            or head_y > (self.SCREEN_SIZE - self.BLOCK_WIDTH)
+            or head_x < 0
+            or head_y < 0
+        ):
             return True
 
         return False
@@ -119,10 +110,12 @@ class Game(Base):
             if point_x == self.snake.x[i] and point_y == self.snake.y[i]:
                 return True
 
-        if point_x > (self.SCREEN_SIZE - self.BLOCK_WIDTH) \
-                or point_y > (self.SCREEN_SIZE - self.BLOCK_WIDTH) \
-                or point_x < 0 \
-                or point_y < 0:
+        if (
+            point_x > (self.SCREEN_SIZE - self.BLOCK_WIDTH)
+            or point_y > (self.SCREEN_SIZE - self.BLOCK_WIDTH)
+            or point_x < 0
+            or point_y < 0
+        ):
             return True
 
         return False
