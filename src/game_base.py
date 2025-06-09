@@ -12,9 +12,11 @@ class GameBase:
         reward = -0.1
         # Additional reward based on distance to apple
         if current_distance < self.BLOCK_WIDTH * 2:  # Very close to apple
-            return reward + 0.5
+            reward += 5
         elif current_distance < self.BLOCK_WIDTH * 4:  # Moderately close to apple
-            return reward + 0.2
+            reward += 2
+        elif current_distance < self.BLOCK_WIDTH * 6:  # Far from apple
+            reward -= 2
         # if snake eats the apple
         if self.snake.x[0] == self.apple.x and self.snake.y[0] == self.apple.y:
             self.score += 1
