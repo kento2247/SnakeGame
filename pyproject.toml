@@ -16,5 +16,6 @@ dependencies = [
     "numpy (==2.0.2)",
     "pygame (==2.6.1)",
     "sympy (==1.13.1)",
-    "typing-extensions (==4.12.2)"
+    "typing-extensions (==4.12.2)",
+    "tqdm>=4.67.1",
 ]

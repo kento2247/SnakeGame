@@ -3,6 +3,20 @@ class GameBase:
         self.SCREEN_SIZE = 600
         self.BLOCK_WIDTH = 20
         self.MAX_FOOD_INDEX = (self.SCREEN_SIZE - self.BLOCK_WIDTH) // self.BLOCK_WIDTH
+        self.x = []
+        self.y = []
+        self.length = None
+
+    def is_danger(self, position_checking):
+        x, y = position_checking
+        # Check if position is out of bounds
+        if x < 0 or x >= self.SCREEN_SIZE or y < 0 or y >= self.SCREEN_SIZE:
+            return True
+        # Check if position collides with snake body
+        for i in range(1, self.length):
+            if self.x[i] == x and self.y[i] == y:
+                return True
+        return False
 
     def reward_function(self):
         current_distance = abs(self.snake.x[0] - self.apple.x) + abs(

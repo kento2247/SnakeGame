@@ -145,17 +145,6 @@ class Game(GameBase):
         self.score = 0
         self.game_over = False
 
-    def is_danger(self, position_checking):
-        x, y = position_checking
-        # Check if position is out of bounds
-        if x < 0 or x >= self.SCREEN_SIZE or y < 0 or y >= self.SCREEN_SIZE:
-            return True
-        # Check if position collides with snake body
-        for i in range(1, self.snake.length):
-            if self.snake.x[i] == x and self.snake.y[i] == y:
-                return True
-        return False
-
     def is_collision(self, x1, y1, x2, y2):
         return x1 == x2 and y1 == y2
 

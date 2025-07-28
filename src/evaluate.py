@@ -1,10 +1,8 @@
 import argparse
-import time
 import pygame
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
+from tqdm import tqdm
 from src.game_base import GameBase
 from src.model import ANN  # Assuming ANN is defined in model.py
 
@@ -12,7 +10,7 @@ from src.model import ANN  # Assuming ANN is defined in model.py
 def load_model(model_path, device, state_size=16, action_size=4):
     """Dynamically load a model based on its architecture"""
     model = ANN(state_size=state_size, action_size=action_size)
-    state_dict = torch.load(model_path, map_location=device)
+    state_dict = torch.load(model_path, weights_only=True)
     model.load_state_dict(state_dict)
     model.eval()
     print(f"Model loaded from {model_path} and moved to {device}")
@@ -37,92 +35,55 @@ class CompetitiveSnake(GameBase):
         if start_pos:
             start_x, start_y = start_pos
         else:
-            # Default positions for two snakes - keep away from edges
-            if snake_id == 1:
-                start_x, start_y = 10 * self.BLOCK_WIDTH, 10 * self.BLOCK_WIDTH
-            else:
-                start_x, start_y = 20 * self.BLOCK_WIDTH, 20 * self.BLOCK_WIDTH
+            start_x, start_y = (
+                np.random.randint(0, self.SCREEN_SIZE // self.BLOCK_WIDTH)
+                * self.BLOCK_WIDTH,
+                np.random.randint(0, self.SCREEN_SIZE // self.BLOCK_WIDTH)
+                * self.BLOCK_WIDTH,
+            )
 
         self.x = [start_x] * self.length
         self.y = [start_y] * self.length
         self.direction = "right" if snake_id == 1 else "left"
 
-    def get_state(self, apple_pos, other_snake):
-        """Get state vector for the neural network"""
+    def get_state(self, apple_pos):
         head_x, head_y = self.x[0], self.y[0]
 
-        # Danger detection (walls, self collision, other snake)
-        danger = []
-        directions = [
-            (-self.BLOCK_WIDTH, 0),  # left
-            (self.BLOCK_WIDTH, 0),  # right
-            (0, -self.BLOCK_WIDTH),  # up
-            (0, self.BLOCK_WIDTH),  # down
-            (-self.BLOCK_WIDTH, -self.BLOCK_WIDTH),  # up-left
-            (self.BLOCK_WIDTH, -self.BLOCK_WIDTH),  # up-right
-            (-self.BLOCK_WIDTH, self.BLOCK_WIDTH),  # down-left
-            (self.BLOCK_WIDTH, self.BLOCK_WIDTH),  # down-right
+        point_left = [(head_x - self.BLOCK_WIDTH), head_y]
+        point_right = [(head_x + self.BLOCK_WIDTH), head_y]
+        point_up = [head_x, (head_y - self.BLOCK_WIDTH)]
+        point_down = [head_x, (head_y + self.BLOCK_WIDTH)]
+        point_left_up = [(head_x - self.BLOCK_WIDTH), (head_y - self.BLOCK_WIDTH)]
+        point_left_down = [(head_x - self.BLOCK_WIDTH), (head_y + self.BLOCK_WIDTH)]
+        point_right_up = [(head_x + self.BLOCK_WIDTH), (head_y - self.BLOCK_WIDTH)]
+        point_right_down = [(head_x + self.BLOCK_WIDTH), (head_y + self.BLOCK_WIDTH)]
+
+        state = [
+            self.is_danger(point_left),
+            self.is_danger(point_right),
+            self.is_danger(point_up),
+            self.is_danger(point_down),
+            self.is_danger(point_left_up),
+            self.is_danger(point_left_down),
+            self.is_danger(point_right_up),
+            self.is_danger(point_right_down),
+            self.direction == "left",
+            self.direction == "right",
+            self.direction == "up",
+            self.direction == "down",
+            apple_pos[0] < head_x,
+            apple_pos[0] > head_x,
+            apple_pos[1] < head_y,
+            apple_pos[1] > head_y,
         ]
 
-        for dx, dy in directions:
-            new_x, new_y = head_x + dx, head_y + dy
-
-            # Check wall collision
-            if (
-                new_x < 0
-                or new_x >= self.SCREEN_SIZE
-                or new_y < 0
-                or new_y >= self.SCREEN_SIZE
-            ):
-                danger.append(1)
-            # Check self collision
-            elif any(
-                new_x == self.x[i] and new_y == self.y[i] for i in range(1, self.length)
-            ):
-                danger.append(1)
-            # Check other snake collision
-            elif other_snake and any(
-                new_x == other_snake.x[i] and new_y == other_snake.y[i]
-                for i in range(other_snake.length)
-            ):
-                danger.append(1)
-            else:
-                danger.append(0)
-
-        # Current direction (one-hot)
-        dir_up = 1 if self.direction == "up" else 0
-        dir_down = 1 if self.direction == "down" else 0
-        dir_left = 1 if self.direction == "left" else 0
-        dir_right = 1 if self.direction == "right" else 0
-
-        # Apple position relative to head
-        apple_x, apple_y = apple_pos if apple_pos else (0, 0)
-        apple_left = 1 if apple_x < head_x else 0
-        apple_right = 1 if apple_x > head_x else 0
-        apple_up = 1 if apple_y < head_y else 0
-        apple_down = 1 if apple_y > head_y else 0
-
-        state = danger + [
-            dir_up,
-            dir_down,
-            dir_left,
-            dir_right,
-            apple_left,
-            apple_right,
-            apple_up,
-            apple_down,
-        ]
-
-        return torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        return torch.tensor(state, dtype=torch.int32)
 
     def get_action(self, state):
         """Get action from model"""
-        # For testing: use random actions with some bias towards apple
-        if np.random.random() < 0.1:  # 10% random for exploration
-            return np.random.randint(0, 4)
-        
+        state = state.float().unsqueeze(0).to(self.device)
         with torch.no_grad():
-            q_values = self.model(state.to(self.device))
+            q_values = self.model(state)
             action = torch.argmax(q_values).item()
         return action
 
@@ -245,11 +206,10 @@ class CompetitiveGame(GameBase):
         # Create snakes with safer initial positions
         self.snake1 = CompetitiveSnake(model1, snake_id=1, color=(0, 255, 0))
         self.snake2 = CompetitiveSnake(model2, snake_id=2, color=(0, 0, 255))
-        
-        if not self.display:
-            print(f"Snake1 initial position: {self.snake1.x[0]}, {self.snake1.y[0]}")
-            print(f"Snake2 initial position: {self.snake2.x[0]}, {self.snake2.y[0]}")
-        
+
+        print(f"Snake1 initial position: {self.snake1.x[0]}, {self.snake1.y[0]}")
+        print(f"Snake2 initial position: {self.snake2.x[0]}, {self.snake2.y[0]}")
+
         # Spawn initial apple
         self.spawn_apple()
         if not self.display:
@@ -296,14 +256,14 @@ class CompetitiveGame(GameBase):
                 self.snake1.frozen = False
                 if not self.display:
                     print(f"Snake1 unfrozen")
-        
+
         if self.snake2.frozen:
             self.snake2.freeze_counter -= 1
             if self.snake2.freeze_counter <= 0:
                 self.snake2.frozen = False
                 if not self.display:
                     print(f"Snake2 unfrozen")
-        
+
         # Spawn apple if needed
         if self.steps_since_apple % self.apple_freq == 0 and self.apple_pos is None:
             self.spawn_apple()
@@ -311,8 +271,8 @@ class CompetitiveGame(GameBase):
             self.snake2.paused = False
 
         # Get states and actions
-        state1 = self.snake1.get_state(self.apple_pos, self.snake2)
-        state2 = self.snake2.get_state(self.apple_pos, self.snake1)
+        state1 = self.snake1.get_state(self.apple_pos)
+        state2 = self.snake2.get_state(self.apple_pos)
 
         action1 = self.snake1.get_action(state1)
         action2 = self.snake2.get_action(state2)
@@ -321,10 +281,10 @@ class CompetitiveGame(GameBase):
         if not self.display and self.snake1.steps == 0:
             print(f"Snake1 action: {action1}, direction: {self.snake1.direction}")
             print(f"Snake2 action: {action2}, direction: {self.snake2.direction}")
-        
+
         self.snake1.move(action1)
         self.snake2.move(action2)
-        
+
         if not self.display and self.snake1.steps == 1:
             print(f"Snake1 new position: {self.snake1.x[0]}, {self.snake1.y[0]}")
             print(f"Snake2 new position: {self.snake2.x[0]}, {self.snake2.y[0]}")
@@ -343,7 +303,7 @@ class CompetitiveGame(GameBase):
             self.snake1.direction = "right"
             if not self.display:
                 print(f"Snake1 frozen for {self.freeze_time} steps")
-        
+
         if snake2_collision and not self.snake2.frozen:
             self.snake2.frozen = True
             self.snake2.freeze_counter = self.freeze_time
@@ -429,20 +389,24 @@ class CompetitiveGame(GameBase):
 
             if self.display:
                 self.clock.tick(10)  # 10 FPS
-            
+
             # Progress update
             if not self.display and step % 500 == 0 and step > 0:
-                print(f"Step {step}: Snake1 score={self.snake1.score}, Snake2 score={self.snake2.score}")
+                print(
+                    f"Step {step}: Snake1 score={self.snake1.score}, Snake2 score={self.snake2.score}"
+                )
 
             step += 1
 
         if self.display:
             pygame.quit()
-        
+
         # Show total apples spawned in this game
         total_apples = (step // self.apple_freq) + 1
         if not self.display:
-            print(f"Game ended - Total apples spawned: {total_apples}, Snake1: {self.snake1.score}, Snake2: {self.snake2.score}")
+            print(
+                f"Game ended - Total apples spawned: {total_apples}, Snake1: {self.snake1.score}, Snake2: {self.snake2.score}"
+            )
 
         return self.snake1.score, self.snake2.score
 
@@ -450,22 +414,21 @@ class CompetitiveGame(GameBase):
 def evaluate(
     model1_path,
     model2_path,
-    apple_freq=100,
-    freeze_time=30,
-    max_steps=10000,
-    num_rounds=100,
-    display=True,
-    state_size=16,
-    action_size=4,
+    apple_freq,
+    freeze_time,
+    max_steps,
+    num_rounds,
+    display,
+    state_size,
+    action_size,
 ):
     """Evaluate two models in competitive play over multiple rounds"""
     total_scores = [0, 0]
     round_scores = []
-    
-    for round_num in range(num_rounds):
-        if not display and round_num % 10 == 0:
-            print(f"\nRound {round_num + 1}/{num_rounds}")
-        
+
+    for round_num in tqdm(range(num_rounds)):
+        print(f"\nRound {round_num + 1}/{num_rounds}")
+
         game = CompetitiveGame(
             model1_path,
             model2_path,
@@ -476,25 +439,27 @@ def evaluate(
             action_size=action_size,
         )
         scores = game.run(max_steps)
-        
+
         total_scores[0] += scores[0]
         total_scores[1] += scores[1]
         round_scores.append(scores)
-        
-        if not display:
-            print(f"Round {round_num + 1} scores - Model 1: {scores[0]}, Model 2: {scores[1]}")
-    
-    if not display:
-        print(f"\n=== Final Results after {num_rounds} rounds ===")
-        print(f"Total scores - Model 1: {total_scores[0]}, Model 2: {total_scores[1]}")
-        print(f"Average scores - Model 1: {total_scores[0]/num_rounds:.2f}, Model 2: {total_scores[1]/num_rounds:.2f}")
-        
-        # Win statistics
-        model1_wins = sum(1 for s in round_scores if s[0] > s[1])
-        model2_wins = sum(1 for s in round_scores if s[1] > s[0])
-        draws = sum(1 for s in round_scores if s[0] == s[1])
-        print(f"Wins - Model 1: {model1_wins}, Model 2: {model2_wins}, Draws: {draws}")
-    
+
+        print(
+            f"Round {round_num + 1} scores - Model 1: {scores[0]}, Model 2: {scores[1]}"
+        )
+
+    print(f"\n=== Final Results after {num_rounds} rounds ===")
+    print(f"Total scores - Model 1: {total_scores[0]}, Model 2: {total_scores[1]}")
+    print(
+        f"Average scores - Model 1: {total_scores[0]/num_rounds:.2f}, Model 2: {total_scores[1]/num_rounds:.2f}"
+    )
+
+    # Win statistics
+    model1_wins = sum(1 for s in round_scores if s[0] > s[1])
+    model2_wins = sum(1 for s in round_scores if s[1] > s[0])
+    draws = sum(1 for s in round_scores if s[0] == s[1])
+    print(f"Wins - Model 1: {model1_wins}, Model 2: {model2_wins}, Draws: {draws}")
+
     return total_scores, round_scores
 
 
@@ -505,17 +470,17 @@ if __name__ == "__main__":
     parser.add_argument("model1", help="Path to first model")
     parser.add_argument("model2", help="Path to second model")
     parser.add_argument(
-        "--apple_freq", type=int, default=100, help="Steps between apple spawns"
+        "--apple_freq", type=int, default=20, help="Steps between apple spawns"
     )
     parser.add_argument(
-        "--max_steps", type=int, default=10000, help="Maximum steps per game"
+        "--max_steps", type=int, default=100, help="Maximum steps per game"
     )
     parser.add_argument(
         "--num_rounds", type=int, default=100, help="Number of rounds to play"
     )
     parser.add_argument("--no_display", action="store_true", help="Run without display")
     parser.add_argument(
-        "--freeze_time", type=int, default=30, help="Steps to freeze when colliding"
+        "--freeze_time", type=int, default=5, help="Steps to freeze when colliding"
     )
     parser.add_argument(
         "--state_size", type=int, default=16, help="Size of the state vector"
