@@ -235,19 +235,18 @@ class Agent:
                 + (1.0 - self.args.interpolation_parameter) * target_params
             )
 
-    def load(self, file_name="model.pth"):
-        file_path = os.path.join(self.args.folder, file_name)
+    def load(self, file_path="model/model.pth"):
         if os.path.exists(file_path):
             self.local_network.load_state_dict(torch.load(file_path))
-            print("Model Loaded")
+            self.target_network.load_state_dict(torch.load(file_path))
+            print("Model Loaded from {}".format(file_path))
             self.retrieve_data()
+        else:
+            raise FileNotFoundError(f"Model file {file_path} does not exist.")
 
-    def save_model(self, file_name="model.pth"):
-        if not os.path.exists(self.args.folder):
-            os.mkdir(self.args.folder)
-
-        file_name = os.path.join(self.args.folder, file_name)
-        torch.save(self.local_network.state_dict(), file_name)
+    def save_model(self, ckpt_path="model.pth"):
+        os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
+        torch.save(self.local_network.state_dict(), ckpt_path)
 
     def retrieve_data(self):
         file_name = "data.json"
@@ -280,8 +279,6 @@ if __name__ == "__main__":
     game = Game()
 
     agent = Agent(state_size=args.state_size, action_size=args.action_size, args=args)
-    if args.ckpt_path:
-        agent.load(args.ckpt_path)
     max_score = 0
 
     epsilon = args.epsilon_starting_value
@@ -291,6 +288,8 @@ if __name__ == "__main__":
         max_score = max(agent.record, max_score)
     print("epsilon starts at {}".format(args.epsilon_starting_value))
     args.scores_on_100_episodes = deque(maxlen=100)
+    if args.ckpt_path and os.path.exists(args.ckpt_path):
+        agent.load(args.ckpt_path)
 
     for episode in range(0, args.number_episodes):
         game.reset()
@@ -307,14 +306,24 @@ if __name__ == "__main__":
             agent.step(state_old, action, reward, state_new, done)
             if done:
                 break
-        max_score = max(max_score, score)
+
+        if score >= max_score:
+            max_score = score
+            agent.save_model(
+                ckpt_path=args.ckpt_path if args.ckpt_path else "model/tmp.pth"
+            )
+            agent.save_data(max_score, args.epsilon_starting_value)
+            print(
+                "New record! Episode: {}, Score: {}, Epsilon: {:.4f}".format(
+                    episode, score, args.epsilon_starting_value
+                )
+            )
+
         args.scores_on_100_episodes.append(score)
         args.epsilon_starting_value = max(
             args.epsilon_ending_value,
             args.epsilon_decay_value * args.epsilon_starting_value,
         )
-        agent.save_model()
-        agent.save_data(max_score, args.epsilon_starting_value)
         if episode % 50 == 0:
             print(
                 "Episode {}\t Curr Score {}\tMax Score {}\tAvg Score {:.2f}".format(
