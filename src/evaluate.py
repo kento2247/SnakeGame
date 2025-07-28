@@ -185,8 +185,10 @@ class CompetitiveGame(GameBase):
         display=True,
         state_size=16,
         action_size=4,
+        fps=30,
     ):
         super().__init__()
+        self.fps = fps
         self.display = display
         self.apple_freq = apple_freq
         self.freeze_time = freeze_time
@@ -388,7 +390,7 @@ class CompetitiveGame(GameBase):
             self.render()
 
             if self.display:
-                self.clock.tick(10)  # 10 FPS
+                self.clock.tick(self.fps)
 
             # Progress update
             if not self.display and step % 500 == 0 and step > 0:
@@ -421,6 +423,7 @@ def evaluate(
     display,
     state_size,
     action_size,
+    fps,
 ):
     """Evaluate two models in competitive play over multiple rounds"""
     total_scores = [0, 0]
@@ -437,6 +440,7 @@ def evaluate(
             display=display,
             state_size=state_size,
             action_size=action_size,
+            fps=fps,
         )
         scores = game.run(max_steps)
 
@@ -488,6 +492,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--action_size", type=int, default=4, help="Number of possible actions"
     )
+    parser.add_argument(
+        "--fps", type=int, default=30, help="Frames per second for display"
+    )
 
     args = parser.parse_args()
 
@@ -501,4 +508,5 @@ if __name__ == "__main__":
         display=not args.no_display,
         state_size=args.state_size,
         action_size=args.action_size,
+        fps=args.fps,
     )
