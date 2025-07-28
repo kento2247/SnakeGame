@@ -1,1 +1,0 @@
-poetry run python src/game.py 

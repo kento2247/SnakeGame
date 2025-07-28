@@ -237,9 +237,15 @@ class Agent:
 
     def load(self, file_path="model/model.pth"):
         if os.path.exists(file_path):
-            self.local_network.load_state_dict(torch.load(file_path))
-            self.target_network.load_state_dict(torch.load(file_path))
+            checkpoint = torch.load(file_path, map_location=self.device)
+            self.local_network.load_state_dict(checkpoint)
+            self.target_network.load_state_dict(checkpoint)
             print("Model Loaded from {}".format(file_path))
+            
+            # Print some weights to verify loading
+            first_layer_weight = self.local_network.fc1.weight.data[0, 0].item()
+            print(f"Sample weight from loaded model: {first_layer_weight:.6f}")
+            
             self.retrieve_data()
         else:
             raise FileNotFoundError(f"Model file {file_path} does not exist.")
@@ -273,7 +279,7 @@ class Agent:
 if __name__ == "__main__":
     args = get_args()
     if args.gui:
-        from src.game import Game
+        from src.game_single import Game
     else:
         from src.game_no_ui import Game
     game = Game()
@@ -281,15 +287,22 @@ if __name__ == "__main__":
     agent = Agent(state_size=args.state_size, action_size=args.action_size, args=args)
     max_score = 0
 
-    epsilon = args.epsilon_starting_value
+    # Load checkpoint first if it exists
+    if args.ckpt_path and os.path.exists(args.ckpt_path):
+        agent.load(args.ckpt_path)
+        print(f"Loaded checkpoint from {args.ckpt_path}")
 
+    # Check if we loaded epsilon and record from checkpoint
     if agent.epsilon != -1:
         args.epsilon_starting_value = agent.epsilon
         max_score = max(agent.record, max_score)
+        print(f"Resuming from record score: {agent.record}, epsilon: {agent.epsilon}")
+    else:
+        # Use default epsilon if not loaded from checkpoint
+        args.epsilon_starting_value = args.epsilon_starting_value
+        
     print("epsilon starts at {}".format(args.epsilon_starting_value))
     args.scores_on_100_episodes = deque(maxlen=100)
-    if args.ckpt_path and os.path.exists(args.ckpt_path):
-        agent.load(args.ckpt_path)
 
     for episode in range(0, args.number_episodes):
         game.reset()
